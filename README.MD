@@ -54,14 +54,15 @@ Install the following libraries in the Arduino IDE:
 String FIREBASE_HOST = "https://your-project-id.firebaseio.com";
 
 ## Update device ID if desired:
-DeviceData dataSensor = {
+DeviceData dataSensor = 
+{
   "esp-dht22-04",  // device_id
   "",               // timestamp (auto-generated)
   0.0,              // temperature
   0.0               // humidity
 };
 
-##Upload the code to your ESP8266 board.
+## Upload the code to your ESP8266 board.
 How it Works
 
 The ESP attempts to connect to the WiFi network using the saved credentials.
@@ -99,3 +100,4 @@ Example:
 If using an actual DHT sensor, you can replace the random data generation with dht.readTemperature() and dht.readHumidity().
 
 The ESP uses BearSSL::WiFiClientSecure with .setInsecure() to bypass certificate verification for HTTPS.
+
