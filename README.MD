@@ -50,10 +50,10 @@ Install the following libraries in the Arduino IDE:
 #define WIFI_SSID "your_wifi_ssid"
 #define WIFI_PASSWORD "your_wifi_password"
 
-##UpdateFirebaseUR :
+## UpdateFirebaseUR :
 String FIREBASE_HOST = "https://your-project-id.firebaseio.com";
 
-##Update device ID if desired:
+## Update device ID if desired:
 DeviceData dataSensor = {
   "esp-dht22-04",  // device_id
   "",               // timestamp (auto-generated)
@@ -79,14 +79,13 @@ Sends the data as a JSON object to Firebase via HTTPS PUT.
 The process repeats every 10 seconds.
 
 ##JSON Format Sent to Firebase
-
 {
   "device_id": "esp-dht22-04",
   "timestamp": "2025-09-05T21:00:00+07:00",
   "temperature": 27.5,
   "humidity": 50.2
 }
-##Notes
+## Notes
 
 Make sure your Firebase database has the correct rules to allow PUT requests.
 Example:
