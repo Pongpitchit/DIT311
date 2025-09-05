@@ -1,0 +1,121 @@
+#include <ESP8266WiFi.h>
+#include <ESP8266HTTPClient.h>
+#include <WiFiClientSecureBearSSL.h>
+#include <ArduinoJson.h>
+#include <time.h>
+#include <WiFiManager.h> // สำหรับ WiFiManager
+
+// ----- Firebase -----
+String FIREBASE_HOST = "https://iot-smart-home-3c1eb-default-rtdb.asia-southeast1.firebasedatabase.app";
+
+// ----- ชื่ออุปกรณ์และ Struct เก็บข้อมูล -----
+struct DeviceData {
+  String device_id;
+  String timestamp;
+  float temperature;
+  float humidity;
+};
+
+// ----- ตัวแปรอุปกรณ์ -----
+DeviceData dataSensor = {
+  "esp-dht22-04",   // device_id
+  "",               // timestamp จะอัปเดตแบบ realtime
+  0.0,              // temperature (จะสุ่ม)
+  0.0               // humidity (จะสุ่ม)
+};
+
+// ----- ฟังก์ชันสำหรับสร้าง timestamp GMT+7 -----
+String getISOTime() {
+  time_t now = time(nullptr);
+  struct tm *timeinfo = localtime(&now);
+  char buf[25];
+  sprintf(buf, "%04d-%02d-%02dT%02d:%02d:%02d+07:00",
+          timeinfo->tm_year + 1900,
+          timeinfo->tm_mon + 1,
+          timeinfo->tm_mday,
+          timeinfo->tm_hour,
+          timeinfo->tm_min,
+          timeinfo->tm_sec);
+  return String(buf);
+}
+
+void setup() {
+  Serial.begin(115200);
+  randomSeed(analogRead(A0));
+
+  // ----- พยายามเชื่อม WiFi ปกติ -----
+  WiFi.begin("sukkamol_2.4G", "0915561463");
+  Serial.print("Connecting to WiFi");
+  int retries = 0;
+  while (WiFi.status() != WL_CONNECTED && retries < 20) { // 10 วินาที
+    delay(500);
+    Serial.print(".");
+    retries++;
+  }
+
+  // ----- ถ้าเชื่อมไม่ได้ ใช้ WiFiManager -----
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.println("\nWiFi not connected! Starting WiFiManager...");
+    WiFiManager wifiManager;
+    wifiManager.autoConnect(dataSensor.device_id.c_str()); // สร้าง AP ให้เลือก WiFi
+    Serial.println("WiFi connected via WiFiManager!");
+  } else {
+    Serial.println("\nConnected to WiFi!");
+  }
+
+  // ----- ตั้งค่าเวลาผ่าน NTP -----
+  configTime(7 * 3600, 0, "pool.ntp.org", "time.nist.gov"); // GMT+7
+}
+
+void loop() {
+  if (WiFi.status() == WL_CONNECTED) {
+    // ----- สุ่มค่า temperature และ humidity -----
+    dataSensor.temperature = random(200, 300) / 10.0; // 20.0 - 30.0 °C
+    dataSensor.humidity = random(400, 600) / 10.0;    // 40.0 - 60.0 %
+
+    // ----- อัปเดต timestamp แบบ realtime -----
+    dataSensor.timestamp = getISOTime();
+
+    // ----- แสดงข้อมูลบน Serial -----
+    Serial.println("Device data:");
+    Serial.println("ID: " + dataSensor.device_id);
+    Serial.println("Timestamp: " + dataSensor.timestamp);
+    Serial.println("Temp: " + String(dataSensor.temperature));
+    Serial.println("Humidity: " + String(dataSensor.humidity));
+
+    // ----- สร้าง HTTPS client -----
+    std::unique_ptr<BearSSL::WiFiClientSecure> client(new BearSSL::WiFiClientSecure);
+    client->setInsecure(); // ไม่ตรวจสอบ certificate
+
+    HTTPClient http;
+    String url = FIREBASE_HOST + "/devices/" + dataSensor.device_id + ".json";
+    http.begin(*client, url);
+    http.addHeader("Content-Type", "application/json");
+
+    // ----- สร้าง JSON -----
+    StaticJsonDocument<200> doc;
+    doc["device_id"] = dataSensor.device_id;
+    doc["timestamp"] = dataSensor.timestamp;
+    doc["temperature"] = dataSensor.temperature;
+    doc["humidity"] = dataSensor.humidity;
+
+    String requestBody;
+    serializeJson(doc, requestBody);
+    Serial.println("requestBody: " + requestBody);
+
+    // ----- ส่ง PUT -----
+    int httpResponseCode = http.PUT(requestBody);
+
+    if (httpResponseCode > 0) {
+      Serial.printf("PUT Response code: %d\n", httpResponseCode);
+      String response = http.getString();
+      Serial.println("Response: " + response);
+    } else {
+      Serial.printf("Error code: %s\n", http.errorToString(httpResponseCode).c_str());
+    }
+
+    http.end();
+  }
+
+  delay(10000); // ส่งข้อมูลทุก 10 วินาที
+}
